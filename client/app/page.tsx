@@ -8,7 +8,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ✅ FIXED: Using 'stock' to match database
+  // ✅ FIXED: Changed 'quantity' to 'stock' to match your database
   const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '' });
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function Home() {
     e.preventDefault();
     const token = localStorage.getItem('token');
     
-    // ✅ FIXED: Sending 'stock' instead of 'quantity'
+    // ✅ FIXED: Sending 'stock' to the backend
     const res = await fetch('https://inventory-system-vef6.onrender.com/api/products', {
       method: 'POST',
       headers: { 
@@ -53,7 +53,7 @@ export default function Home() {
 
     if (res.ok) {
       alert("✅ Product Added Successfully!");
-      setNewProduct({ name: '', price: '', stock: '' }); 
+      setNewProduct({ name: '', price: '', stock: '' }); // Reset form
       fetchProducts();
     } else {
       const errorData = await res.json();
@@ -81,9 +81,12 @@ export default function Home() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto min-h-screen bg-gray-50">
+      
+      {/* HEADER */}
       <div className="flex justify-between items-center mb-8 bg-white p-4 rounded shadow-sm">
         <div>
            <h1 className="text-2xl font-bold text-gray-800">📦 Inventory System</h1>
+           <p className="text-gray-500 text-sm">Manage your stock levels</p>
         </div>
         <div className="flex items-center gap-4">
           <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase ${
@@ -97,6 +100,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ADMIN ADD FORM */}
       {role === 'admin' ? (
         <div className="bg-white p-6 rounded-lg shadow-md mb-8 border-l-4 border-purple-500">
           <h2 className="text-lg font-bold mb-4">Add New Item</h2>
@@ -106,7 +110,7 @@ export default function Home() {
             <input placeholder="Price" type="number" className="border p-2 rounded w-24" 
               value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} required />
             
-            {/* ✅ This Input says 'Stock' now */}
+            {/* ✅ FIXED: Input now binds to 'stock' */}
             <input placeholder="Stock" type="number" className="border p-2 rounded w-24" 
               value={newProduct.stock} onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})} required />
             
@@ -121,6 +125,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* PRODUCT LIST */}
       <div className="grid gap-4">
         {products.length === 0 ? (
            <p className="text-center text-gray-500 py-10">No products found. Add some items above!</p>
