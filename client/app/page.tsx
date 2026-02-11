@@ -8,7 +8,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // 1️⃣ FIXED: Use 'stock' instead of 'quantity' to match your database
+  // ✅ FIXED: Using 'stock' to match database
   const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '' });
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function Home() {
     e.preventDefault();
     const token = localStorage.getItem('token');
     
-    // 2️⃣ FIXED: Sending 'stock' to the backend
+    // ✅ FIXED: Sending 'stock' instead of 'quantity'
     const res = await fetch('https://inventory-system-vef6.onrender.com/api/products', {
       method: 'POST',
       headers: { 
@@ -53,10 +53,9 @@ export default function Home() {
 
     if (res.ok) {
       alert("✅ Product Added Successfully!");
-      setNewProduct({ name: '', price: '', stock: '' }); // Reset form
+      setNewProduct({ name: '', price: '', stock: '' }); 
       fetchProducts();
     } else {
-      // 3️⃣ NEW: Show the actual error message from the server
       const errorData = await res.json();
       alert(`❌ Failed: ${errorData.message || "Check your input"}`);
     }
@@ -82,12 +81,9 @@ export default function Home() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto min-h-screen bg-gray-50">
-      
-      {/* HEADER */}
       <div className="flex justify-between items-center mb-8 bg-white p-4 rounded shadow-sm">
         <div>
            <h1 className="text-2xl font-bold text-gray-800">📦 Inventory System</h1>
-           <p className="text-gray-500 text-sm">Manage your stock levels</p>
         </div>
         <div className="flex items-center gap-4">
           <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase ${
@@ -101,7 +97,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ADMIN ADD FORM */}
       {role === 'admin' ? (
         <div className="bg-white p-6 rounded-lg shadow-md mb-8 border-l-4 border-purple-500">
           <h2 className="text-lg font-bold mb-4">Add New Item</h2>
@@ -110,8 +105,11 @@ export default function Home() {
               value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} required />
             <input placeholder="Price" type="number" className="border p-2 rounded w-24" 
               value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} required />
+            
+            {/* ✅ This Input says 'Stock' now */}
             <input placeholder="Stock" type="number" className="border p-2 rounded w-24" 
               value={newProduct.stock} onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})} required />
+            
             <button type="submit" className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 font-bold">
               + Add
             </button>
@@ -123,7 +121,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* PRODUCT LIST */}
       <div className="grid gap-4">
         {products.length === 0 ? (
            <p className="text-center text-gray-500 py-10">No products found. Add some items above!</p>
@@ -134,7 +131,6 @@ export default function Home() {
                 <h3 className="font-bold text-lg text-gray-800">{p.name}</h3>
                 <div className="text-sm text-gray-500 mt-1 flex gap-3">
                     <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded">Price: ${p.price}</span>
-                    {/* 4️⃣ FIXED: Displaying 'stock' from database */}
                     <span className={`px-2 py-0.5 rounded ${p.stock < 5 ? 'bg-red-100 text-red-800 font-bold' : 'bg-gray-100'}`}>
                         Stock: {p.stock}
                     </span>
