@@ -1,11 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const app = express();
 
-// 1. Allow Frontend to Connect (CORS)
+// 1. CORS - Allow Frontend to connect
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'DELETE', 'PUT'],
@@ -14,19 +16,63 @@ app.use(cors({
 
 app.use(express.json());
 
-// 2. Define Product Model DIRECTLY here (Safety check)
-// If you already have models/Product.js, this just ensures it works
+// 2. Define Models DIRECTLY (Safety check)
 const productSchema = new mongoose.Schema({
     name: String,
     price: Number,
     quantity: Number
 });
-// Check if model exists before defining to avoid overwrite errors
+const userSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    role: { type: String, default: 'staff' }
+});
+
+// Prevent "OverwriteModelError"
 const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 3. API ROUTES (Written directly here so they can't be lost)
+// ==========================
+// 🔐 AUTH ROUTES (Login/Register)
+// ==========================
 
-// ✅ GET ALL PRODUCTS
+// REGISTER
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User({ email, password: hashedPassword, role: 'staff' });
+        await user.save();
+        res.status(201).json({ message: "User created" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// LOGIN
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        
+        if (!user) return res.status(400).json({ error: "User not found" });
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
+
+        const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: "1h" });
+
+        res.json({ token, role: user.role, user: { role: user.role } });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================
+// 📦 PRODUCT ROUTES
+// ==========================
+
+// GET ALL
 app.get('/api/products', async (req, res) => {
     try {
         const products = await Product.find();
@@ -36,12 +82,10 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-// ✅ ADD PRODUCT
+// ADD PRODUCT
 app.post('/api/products', async (req, res) => {
     try {
         const { name, price, quantity, stock } = req.body;
-        
-        // Handle "stock" vs "quantity" confusion automatically
         const finalQuantity = Number(quantity) || Number(stock) || 0;
 
         const newProduct = new Product({
@@ -57,7 +101,7 @@ app.post('/api/products', async (req, res) => {
     }
 });
 
-// ✅ DELETE PRODUCT
+// DELETE PRODUCT
 app.delete('/api/products/:id', async (req, res) => {
     try {
         await Product.findByIdAndDelete(req.params.id);
@@ -67,12 +111,12 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 });
 
-// 4. Test Route
+// Test Route
 app.get('/', (req, res) => {
-    res.send('✅ Backend is Running & Routes are Fixed!');
+    res.send('✅ Backend is Running! (Auth + Products Fixed)');
 });
 
-// 5. Connect to Database
+// Database Connection
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ DB Error:', err));
