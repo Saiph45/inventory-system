@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const Product = require('../models/Product'); // Make sure this path matches your folder structure
+const Product = require('../models/Product'); 
 
-// ✅ GET All Products
-// The URL is already '/api/products', so we just use '/'
+// ✅ CORRECT: Just use '/' because server.js already adds '/api/products'
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find();
@@ -13,19 +12,14 @@ router.get('/', async (req, res) => {
     }
 });
 
-// ✅ ADD Product
+// ✅ CORRECT: Add Product
 router.post('/', async (req, res) => {
-    const { name, price, quantity } = req.body; // Using 'quantity' as discussed
+    const { name, price, quantity } = req.body;
     
-    // Basic Validation
-    if (!name || !price) {
-        return res.status(400).json({ message: "Name and Price are required" });
-    }
-
     const product = new Product({
         name,
         price,
-        quantity: quantity || 0 // Default to 0 if missing
+        quantity: quantity || 0 
     });
 
     try {
@@ -36,7 +30,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-// ✅ DELETE Product
+// ✅ CORRECT: Delete Product
 router.delete('/:id', async (req, res) => {
     try {
         await Product.findByIdAndDelete(req.params.id);
