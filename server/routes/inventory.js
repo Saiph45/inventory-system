@@ -1,45 +1,49 @@
 const express = require('express');
 const router = express.Router();
-const Product = require('../models/Product');
-const mongoose = require('mongoose');
+const Product = require('../models/Product'); // Make sure this path matches your folder structure
 
-// GET all products
-router.get('/products', async (req, res) => {
-  const products = await Product.find();
-  res.json(products);
+// ✅ GET All Products
+// The URL is already '/api/products', so we just use '/'
+router.get('/', async (req, res) => {
+    try {
+        const products = await Product.find();
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
 });
 
-// POST Create Order (Transactional)
-router.post('/order', async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { items } = req.body; // Expects [{ productId, quantity }]
-
-    for (const item of items) {
-      const product = await Product.findById(item.productId).session(session);
-      
-      if (!product) throw new Error(`Product not found`);
-      if (product.stock < item.quantity) {
-        throw new Error(`Insufficient stock for ${product.name}`);
-      }
-
-      // Deduct Stock 
-      product.stock -= item.quantity;
-      await product.save({ session });
+// ✅ ADD Product
+router.post('/', async (req, res) => {
+    const { name, price, quantity } = req.body; // Using 'quantity' as discussed
+    
+    // Basic Validation
+    if (!name || !price) {
+        return res.status(400).json({ message: "Name and Price are required" });
     }
 
-    // (Here you would typically save the Order model too)
-    
-    await session.commitTransaction();
-    res.json({ message: 'Order Processed & Stock Deducted' });
-  } catch (err) {
-    await session.abortTransaction();
-    res.status(400).json({ error: err.message });
-  } finally {
-    session.endSession();
-  }
+    const product = new Product({
+        name,
+        price,
+        quantity: quantity || 0 // Default to 0 if missing
+    });
+
+    try {
+        const newProduct = await product.save();
+        res.status(201).json(newProduct);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
+// ✅ DELETE Product
+router.delete('/:id', async (req, res) => {
+    try {
+        await Product.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Product deleted' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
 });
 
 module.exports = router;
