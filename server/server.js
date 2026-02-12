@@ -1,12 +1,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const Product = require('./models/Product'); // Import Product Model directly
 require('dotenv').config();
 
 const app = express();
 
-// 1️⃣ FIX CORS (Allow Frontend to connect)
+// 1. Allow Frontend to Connect (CORS)
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'DELETE', 'PUT'],
@@ -15,15 +14,19 @@ app.use(cors({
 
 app.use(express.json());
 
-// 2️⃣ LOGGING (Helps us see requests in Render logs)
-app.use((req, res, next) => {
-    console.log(`Incoming Request: ${req.method} ${req.url}`);
-    next();
+// 2. Define Product Model DIRECTLY here (Safety check)
+// If you already have models/Product.js, this just ensures it works
+const productSchema = new mongoose.Schema({
+    name: String,
+    price: Number,
+    quantity: Number
 });
+// Check if model exists before defining to avoid overwrite errors
+const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
 
-// 3️⃣ INLINE PRODUCT ROUTES (So they can't get lost)
+// 3. API ROUTES (Written directly here so they can't be lost)
 
-// GET All Products
+// ✅ GET ALL PRODUCTS
 app.get('/api/products', async (req, res) => {
     try {
         const products = await Product.find();
@@ -33,30 +36,28 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-// ADD Product
+// ✅ ADD PRODUCT
 app.post('/api/products', async (req, res) => {
-    console.log("Adding Product:", req.body); // Debug log
-    const { name, price, quantity, stock } = req.body;
-    
-    // Support BOTH 'quantity' and 'stock' to be safe
-    const finalStock = Number(quantity) || Number(stock) || 0;
-
-    const product = new Product({
-        name,
-        price: Number(price),
-        quantity: finalStock
-    });
-
     try {
-        const newProduct = await product.save();
-        res.status(201).json(newProduct);
+        const { name, price, quantity, stock } = req.body;
+        
+        // Handle "stock" vs "quantity" confusion automatically
+        const finalQuantity = Number(quantity) || Number(stock) || 0;
+
+        const newProduct = new Product({
+            name,
+            price: Number(price),
+            quantity: finalQuantity
+        });
+
+        const savedProduct = await newProduct.save();
+        res.status(201).json(savedProduct);
     } catch (err) {
-        console.error("Add Error:", err);
-        res.status(400).json({ message: err.message });
+        res.status(400).json({ message: "Error adding product", error: err.message });
     }
 });
 
-// DELETE Product
+// ✅ DELETE PRODUCT
 app.delete('/api/products/:id', async (req, res) => {
     try {
         await Product.findByIdAndDelete(req.params.id);
@@ -66,21 +67,12 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 });
 
-// 4️⃣ KEEP AUTH SEPARATE (Since login works fine)
-// Make sure this file exists in server/routes/authRoutes.js
-try {
-    const authRoutes = require('./routes/authRoutes');
-    app.use('/api/auth', authRoutes);
-} catch (error) {
-    console.error("Auth Routes Error:", error);
-}
-
-// Root Route
+// 4. Test Route
 app.get('/', (req, res) => {
-    res.send('✅ Backend is Running & Products are Loaded!');
+    res.send('✅ Backend is Running & Routes are Fixed!');
 });
 
-// Database Connection
+// 5. Connect to Database
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ DB Error:', err));
