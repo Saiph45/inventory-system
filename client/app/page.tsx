@@ -4,178 +4,146 @@ import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
   const [role, setRole] = useState('');
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Using 'quantity' (standard) - we will convert this to Number when sending
+  // Admin Form State
   const [newProduct, setNewProduct] = useState({ name: '', price: '', quantity: '' });
 
   useEffect(() => {
-    // 1. Check for Token
     const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    // 2. Get Role
-    setRole(localStorage.getItem('role') || 'user');
-
-    // 3. Fetch Data
+    if (!token) { router.push('/login'); return; }
+    setRole(localStorage.getItem('role') || 'staff');
     fetchProducts();
   }, []);
 
   const fetchProducts = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // GET request needs the token
-      const res = await fetch('https://inventory-system-vef6.onrender.com/api/products', {
-        headers: {
-          'Authorization': `Bearer ${token}` 
-        }
-      });
-      
-      if (!res.ok) throw new Error("Failed to fetch");
-      
-      const data = await res.json();
-      setProducts(data);
-    } catch (error) {
-      console.error('Failed to fetch products', error);
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch('https://inventory-system-vef6.onrender.com/api/products');
+    const data = await res.json();
+    setProducts(data);
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
-
-    // 🚨 CRITICAL FIX: Convert Strings to Numbers
-    // The backend likely fails if you send "100" (string) instead of 100 (number)
-    const payload = {
-      name: newProduct.name,
-      price: Number(newProduct.price),      // Force Number
-      quantity: Number(newProduct.quantity) // Force Number
-    };
-    
-    try {
-      const res = await fetch('https://inventory-system-vef6.onrender.com/api/products', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert("✅ Product Added Successfully!");
-        setNewProduct({ name: '', price: '', quantity: '' }); // Reset form
-        fetchProducts(); // Refresh list
-      } else {
-        // Show the EXACT error from the backend
-        alert(`❌ Error: ${data.message || JSON.stringify(data)}`);
-      }
-    } catch (error) {
-      alert("❌ Network Error: Could not connect to server.");
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if(!confirm("Are you sure you want to delete this item?")) return;
-    
-    const token = localStorage.getItem('token');
-    await fetch(`https://inventory-system-vef6.onrender.com/api/products/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
+    await fetch('https://inventory-system-vef6.onrender.com/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(newProduct),
     });
+    setNewProduct({ name: '', price: '', quantity: '' });
     fetchProducts();
   };
 
+  const handleDelete = async (id: string) => {
+    if(!confirm("Delete this item?")) return;
+    await fetch(`https://inventory-system-vef6.onrender.com/api/products/${id}`, { method: 'DELETE' });
+    fetchProducts();
+  };
+
+  // ✅ CART FUNCTIONS
+  const addToCart = (product: any) => {
+    if (product.quantity > 0) {
+        setCart([...cart, product]);
+    } else {
+        alert("Out of Stock!");
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return alert("Cart is empty!");
+    
+    const res = await fetch('https://inventory-system-vef6.onrender.com/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart }),
+    });
+
+    if (res.ok) {
+        alert("✅ Order Placed! Stock updated.");
+        setCart([]); // Clear cart
+        fetchProducts(); // Refresh stock numbers
+    } else {
+        alert("❌ Order Failed");
+    }
+  };
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
+    localStorage.clear();
     window.location.href = '/login';
   };
 
-  if (loading) return <div className="p-10 text-center font-bold">Loading Inventory...</div>;
-
   return (
-    <div className="p-8 max-w-4xl mx-auto min-h-screen bg-gray-50">
+    <div className="p-8 max-w-5xl mx-auto min-h-screen bg-gray-50 flex gap-8">
       
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-8 bg-white p-4 rounded shadow-sm">
-        <div>
-           <h1 className="text-2xl font-bold text-gray-800">📦 Inventory System</h1>
-           <p className="text-gray-500 text-sm">Manage your stock levels</p>
+      {/* LEFT SIDE: PRODUCT LIST */}
+      <div className="flex-1">
+        <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">📦 Inventory</h1>
+            <button onClick={handleLogout} className="text-red-500 font-bold border px-3 py-1 rounded">Logout</button>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase ${
-            role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-          }`}>
-            {role} Account
-          </span>
-          
-          <button onClick={handleLogout} className="text-red-500 font-bold hover:text-red-700 border px-3 py-1 rounded hover:bg-red-50">
-            Logout
-          </button>
-        </div>
-      </div>
 
-      {/* ADMIN ADD FORM */}
-      {role === 'admin' ? (
-        <div className="bg-white p-6 rounded-lg shadow-md mb-8 border-l-4 border-purple-500">
-          <h2 className="text-lg font-bold mb-4">Add New Item</h2>
-          <form onSubmit={handleAddProduct} className="flex gap-4">
-            <input placeholder="Product Name" className="border p-2 rounded w-full" 
-              value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} required />
-            <input placeholder="Price" type="number" className="border p-2 rounded w-24" 
-              value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} required />
-            <input placeholder="Qty" type="number" className="border p-2 rounded w-24" 
-              value={newProduct.quantity} onChange={(e) => setNewProduct({...newProduct, quantity: e.target.value})} required />
-            <button type="submit" className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 font-bold">
-              + Add
-            </button>
-          </form>
-        </div>
-      ) : (
-        <div className="bg-blue-50 p-4 rounded mb-8 text-blue-800 border border-blue-200 flex items-center gap-3">
-          <span className="text-xl">👀</span>
-          <div>
-            <strong>View-Only Mode:</strong> You are logged in as a Staff member. You can view stock, but cannot edit.
-          </div>
-        </div>
-      )}
-
-      {/* PRODUCT LIST */}
-      <div className="grid gap-4">
-        {products.length === 0 ? (
-           <p className="text-center text-gray-500 py-10">No products found. Add some items above!</p>
-        ) : (
-          products.map((p) => (
-            <div key={p._id} className="bg-white p-4 rounded shadow flex justify-between items-center border border-gray-100 hover:shadow-md transition">
-              <div>
-                <h3 className="font-bold text-lg text-gray-800">{p.name}</h3>
-                <div className="text-sm text-gray-500 mt-1 flex gap-3">
-                    <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded">Price: ${p.price}</span>
-                    <span className={`px-2 py-0.5 rounded ${p.quantity < 5 ? 'bg-red-100 text-red-800 font-bold' : 'bg-gray-100'}`}>
-                        Stock: {p.quantity || p.stock} {/* Try both names just in case */}
-                    </span>
-                </div>
-              </div>
-              {role === 'admin' && (
-                <button onClick={() => handleDelete(p._id)} className="text-red-500 hover:bg-red-50 p-2 rounded" title="Delete Product">
-                    🗑️
-                </button>
-              )}
-            </div>
-          ))
+        {/* Admin Add Form */}
+        {role === 'admin' && (
+            <form onSubmit={handleAddProduct} className="bg-white p-4 rounded shadow mb-6 flex gap-2">
+                <input placeholder="Name" className="border p-2 rounded w-full" value={newProduct.name} onChange={(e)=>setNewProduct({...newProduct, name: e.target.value})} />
+                <input placeholder="Price" type="number" className="border p-2 rounded w-20" value={newProduct.price} onChange={(e)=>setNewProduct({...newProduct, price: e.target.value})} />
+                <input placeholder="Qty" type="number" className="border p-2 rounded w-20" value={newProduct.quantity} onChange={(e)=>setNewProduct({...newProduct, quantity: e.target.value})} />
+                <button className="bg-purple-600 text-white px-4 rounded">Add</button>
+            </form>
         )}
+
+        <div className="grid gap-3">
+            {products.map((p) => (
+                <div key={p._id} className="bg-white p-4 rounded shadow flex justify-between items-center">
+                    <div>
+                        <h3 className="font-bold">{p.name}</h3>
+                        <p className="text-sm text-gray-500">${p.price} | Stock: {p.quantity}</p>
+                    </div>
+                    <div>
+                        {role === 'admin' ? (
+                            <button onClick={() => handleDelete(p._id)} className="text-red-500 p-2">🗑️</button>
+                        ) : (
+                            <button onClick={() => addToCart(p)} className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                                + Add to Order
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
+
+      {/* RIGHT SIDE: CART (Only for Staff) */}
+      {role !== 'admin' && (
+          <div className="w-80 bg-white p-6 rounded shadow h-fit border border-gray-200">
+            <h2 className="text-xl font-bold mb-4">🛒 New Order</h2>
+            {cart.length === 0 ? (
+                <p className="text-gray-400 text-sm">Select items to add them here.</p>
+            ) : (
+                <div className="space-y-2 mb-4">
+                    {cart.map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm border-b pb-1">
+                            <span>{item.name}</span>
+                            <span>${item.price}</span>
+                        </div>
+                    ))}
+                    <div className="pt-2 font-bold text-lg flex justify-between border-t mt-4">
+                        <span>Total:</span>
+                        <span>${cart.reduce((sum, item) => sum + item.price, 0)}</span>
+                    </div>
+                </div>
+            )}
+            <button 
+                onClick={handleCheckout} 
+                disabled={cart.length === 0}
+                className={`w-full py-2 rounded font-bold text-white ${cart.length === 0 ? 'bg-gray-300' : 'bg-green-600 hover:bg-green-700'}`}
+            >
+                Confirm Order
+            </button>
+          </div>
+      )}
     </div>
   );
 }
