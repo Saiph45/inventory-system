@@ -4,7 +4,9 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isResetMode, setIsResetMode] = useState(false);
+  
+  // View State: 'login' | 'signup' | 'reset'
+  const [view, setView] = useState('login'); 
   const [formData, setFormData] = useState({ email: '', password: '', newPassword: '', secretKey: '' });
   const [loading, setLoading] = useState(false);
 
@@ -15,9 +17,12 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const url = isResetMode 
-        ? 'https://inventory-system-vef6.onrender.com/api/auth/reset-password'
-        : 'https://inventory-system-vef6.onrender.com/api/auth/login';
+
+    // Determine API Endpoint based on current View
+    let url = '';
+    if (view === 'login') url = 'https://inventory-system-vef6.onrender.com/api/auth/login';
+    if (view === 'signup') url = 'https://inventory-system-vef6.onrender.com/api/auth/register';
+    if (view === 'reset') url = 'https://inventory-system-vef6.onrender.com/api/auth/reset-password';
     
     try {
       const res = await fetch(url, {
@@ -28,16 +33,22 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        if (!isResetMode) {
+        if (view === 'login') {
+            // Login Success -> Go to Dashboard
             localStorage.setItem('token', data.token);
             localStorage.setItem('role', data.role);
             router.push('/'); 
+        } else if (view === 'signup') {
+            // Signup Success -> Switch to Login
+            alert("✅ Account Created! Please Sign In.");
+            setView('login');
         } else {
-            alert("✅ Password Reset! Please login.");
-            setIsResetMode(false);
+            // Reset Success -> Switch to Login
+            alert("✅ Password Reset! Please Sign In.");
+            setView('login');
         }
       } else {
-        alert("❌ Error: " + data.error);
+        alert("❌ Error: " + (data.error || data.message));
       }
     } catch (err) { alert("❌ Connection Error"); }
     setLoading(false);
@@ -47,50 +58,82 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
       <div className="bg-white/90 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-[1.01]">
         
+        {/* HEADER */}
         <div className="text-center mb-8">
             <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text text-4xl font-extrabold mb-2">
-                📦 ERP System
+                {view === 'login' && '📦 Welcome Back'}
+                {view === 'signup' && '🚀 Join Us'}
+                {view === 'reset' && '🔐 Recovery'}
             </div>
-            <p className="text-gray-500 text-sm">Manage your inventory with style</p>
+            <p className="text-gray-500 text-sm">
+                {view === 'login' && 'Sign in to manage your inventory'}
+                {view === 'signup' && 'Create your staff account'}
+                {view === 'reset' && 'Reset your access securely'}
+            </p>
         </div>
 
+        {/* FORM */}
         <form onSubmit={handleSubmit} className="space-y-6">
-            {!isResetMode ? (
+            
+            {/* Common Field: Email */}
+            <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 ml-1">Email Address</label>
+                <input name="email" type="email" required placeholder="name@company.com"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
+                    onChange={handleChange} />
+            </div>
+
+            {/* Login & Signup: Password Field */}
+            {(view === 'login' || view === 'signup') && (
+                <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 ml-1">Password</label>
+                    <input name="password" type="password" required placeholder="••••••••"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
+                        onChange={handleChange} />
+                </div>
+            )}
+
+            {/* Reset Password Fields */}
+            {view === 'reset' && (
                 <>
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700 ml-1">Email Address</label>
-                        <input name="email" type="email" required placeholder="admin@example.com"
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
-                            onChange={handleChange} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700 ml-1">Password</label>
-                        <input name="password" type="password" required placeholder="••••••••"
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
-                            onChange={handleChange} />
-                    </div>
-                </>
-            ) : (
-                <>
-                   <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 mb-4">
-                        ℹ️ Enter your email, new password, and the <strong>Master Key</strong> to reset.
+                   <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 mb-2">
+                        ℹ️ Enter the <strong>Master Key</strong> to reset your password.
                    </div>
-                   <input name="email" type="email" required placeholder="Your Email" className="w-full px-4 py-3 rounded-xl border bg-gray-50" onChange={handleChange} />
-                   <input name="newPassword" type="password" required placeholder="New Password" className="w-full px-4 py-3 rounded-xl border bg-gray-50" onChange={handleChange} />
-                   <input name="secretKey" type="text" required placeholder="Master Key" className="w-full px-4 py-3 rounded-xl border bg-gray-50" onChange={handleChange} />
+                   <input name="newPassword" type="password" required placeholder="New Password" 
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-purple-200" onChange={handleChange} />
+                   <input name="secretKey" type="text" required placeholder="Master Key" 
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-purple-200" onChange={handleChange} />
                 </>
             )}
 
+            {/* Main Action Button */}
             <button disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg transform transition hover:-translate-y-0.5 active:translate-y-0">
-                {loading ? 'Processing...' : (isResetMode ? 'Reset Password' : 'Sign In')}
+                {loading ? 'Processing...' : (
+                    view === 'login' ? 'Sign In' : (view === 'signup' ? 'Create Account' : 'Reset Password')
+                )}
             </button>
         </form>
 
-        <div className="mt-6 text-center">
-            <button onClick={() => setIsResetMode(!isResetMode)} className="text-sm text-gray-500 hover:text-purple-600 font-semibold transition">
-                {isResetMode ? '← Back to Login' : 'Forgot Password?'}
-            </button>
+        {/* FOOTER LINKS */}
+        <div className="mt-6 text-center space-y-2">
+            {view === 'login' && (
+                <>
+                    <p className="text-sm text-gray-500">
+                        New here? <button onClick={() => setView('signup')} className="text-purple-600 font-bold hover:underline">Create Account</button>
+                    </p>
+                    <button onClick={() => setView('reset')} className="text-xs text-gray-400 hover:text-gray-600">
+                        Forgot Password?
+                    </button>
+                </>
+            )}
+
+            {(view === 'signup' || view === 'reset') && (
+                <button onClick={() => setView('login')} className="text-sm text-gray-500 hover:text-purple-600 font-semibold transition">
+                    ← Back to Login
+                </button>
+            )}
         </div>
+
       </div>
     </div>
   );
