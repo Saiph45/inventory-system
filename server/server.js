@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const app = express();
 
+// 1. MIDDLEWARE
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -15,7 +16,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// LOGGING
+// Logging for debugging
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url}`);
     next();
@@ -25,7 +26,7 @@ app.use((req, res, next) => {
 // 🗄️ DATABASE MODELS
 // ==========================
 
-// 1. User Model (Restored!)
+// User Model
 const userSchema = new mongoose.Schema({ 
     email: { type: String, required: true, unique: true }, 
     password: { type: String, required: true }, 
@@ -33,16 +34,16 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 2. Product Model (With SKU Fix)
+// Product Model
 const productSchema = new mongoose.Schema({ 
     name: String, 
     price: Number, 
     quantity: Number,
-    sku: { type: String, unique: true } // ✅ Unique ID
+    sku: { type: String, unique: true } // Unique ID for every product
 });
 const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
 
-// 3. Order Model
+// Order Model
 const orderSchema = new mongoose.Schema({
     customerName: String,
     address: String,
@@ -53,7 +54,7 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
 // ==========================
-// 🔐 AUTH ROUTES (Restored!)
+// 🔐 AUTH ROUTES
 // ==========================
 
 app.post('/api/auth/register', async (req, res) => {
@@ -83,7 +84,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==========================
-// 📦 PRODUCT ROUTES
+// 📦 PRODUCT ROUTES (Smart Restock)
 // ==========================
 
 app.get('/api/products', async (req, res) => {
@@ -93,6 +94,7 @@ app.get('/api/products', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ✅ SMART ADD / RESTOCK LOGIC
 app.post('/api/products', async (req, res) => {
     try {
         const { name, price, quantity, stock } = req.body;
@@ -100,25 +102,36 @@ app.post('/api/products', async (req, res) => {
         
         if (!name) return res.status(400).json({ message: "Name is required" });
 
-        // ✅ Generate Unique SKU
-        const uniqueSku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        // 1. Check if product already exists (Case Insensitive)
+        // This finds "redmi" even if you typed "Redmi"
+        let product = await Product.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
 
-        const newProduct = new Product({ 
-            name, 
-            price: Number(price), 
-            quantity: finalQty,
-            sku: uniqueSku
-        });
-        
-        await newProduct.save();
-        res.status(201).json(newProduct);
+        if (product) {
+            // 🔄 RESTOCK LOGIC: Update existing product
+            product.quantity += finalQty; 
+            
+            // Optional: Update price if a new price is provided, otherwise keep old price
+            if (price) product.price = Number(price); 
+            
+            await product.save();
+            console.log(`🔄 Restocked ${product.name}: New Qty = ${product.quantity}`);
+            res.json({ message: `Stock Updated! Total: ${product.quantity}`, product });
+        } else {
+            // 🆕 CREATE LOGIC: Make new product with SKU
+            const uniqueSku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            product = new Product({ 
+                name, 
+                price: Number(price) || 0, 
+                quantity: finalQty,
+                sku: uniqueSku
+            });
+            await product.save();
+            console.log(`✅ Created New Product: ${name}`);
+            res.status(201).json(product);
+        }
     } catch (err) {
         console.error("Add Error:", err);
-        if (err.code === 11000) {
-            res.status(400).json({ message: "Duplicate SKU Error - Try again" });
-        } else {
-            res.status(500).json({ message: "Server Error", error: err.message });
-        }
+        res.status(500).json({ message: "Server Error", error: err.message });
     }
 });
 
@@ -154,8 +167,11 @@ app.post('/api/orders', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/', (req, res) => res.send('✅ Server Running (Login + Products + Orders)'));
+app.get('/', (req, res) => res.send('✅ Server Running (Smart Restock Enabled)'));
 
+// ==========================
+// 🚀 SERVER START
+// ==========================
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error(err));
