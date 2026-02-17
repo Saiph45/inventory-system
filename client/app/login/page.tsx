@@ -7,7 +7,9 @@ export default function LoginPage() {
   
   // View State: 'login' | 'signup' | 'reset'
   const [view, setView] = useState('login'); 
-  const [formData, setFormData] = useState({ email: '', password: '', newPassword: '', secretKey: '' });
+  const [formData, setFormData] = useState({ 
+      name: '', email: '', password: '', confirmPassword: '', newPassword: '', secretKey: '' 
+  });
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -18,7 +20,13 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    // Determine API Endpoint based on current View
+    // ✅ VALIDATION: Check Passwords Match
+    if (view === 'signup' && formData.password !== formData.confirmPassword) {
+        alert("❌ Passwords do not match!");
+        setLoading(false);
+        return;
+    }
+
     let url = '';
     if (view === 'login') url = 'https://inventory-system-vef6.onrender.com/api/auth/login';
     if (view === 'signup') url = 'https://inventory-system-vef6.onrender.com/api/auth/register';
@@ -34,16 +42,14 @@ export default function LoginPage() {
 
       if (res.ok) {
         if (view === 'login') {
-            // Login Success -> Go to Dashboard
             localStorage.setItem('token', data.token);
             localStorage.setItem('role', data.role);
+            localStorage.setItem('userName', data.name); // Save Name
             router.push('/'); 
         } else if (view === 'signup') {
-            // Signup Success -> Switch to Login
             alert("✅ Account Created! Please Sign In.");
             setView('login');
         } else {
-            // Reset Success -> Switch to Login
             alert("✅ Password Reset! Please Sign In.");
             setView('login');
         }
@@ -73,21 +79,41 @@ export default function LoginPage() {
         </div>
 
         {/* FORM */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Common Field: Email */}
-            <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 ml-1">Email Address</label>
+            {/* ✅ NEW: Name Field (Only for Signup) */}
+            {view === 'signup' && (
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-700 ml-1 uppercase">Full Name</label>
+                    <input name="name" type="text" required placeholder="John Doe"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
+                        onChange={handleChange} />
+                </div>
+            )}
+
+            {/* Email Field (Always Visible) */}
+            <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-700 ml-1 uppercase">Email Address</label>
                 <input name="email" type="email" required placeholder="name@company.com"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
                     onChange={handleChange} />
             </div>
 
-            {/* Login & Signup: Password Field */}
+            {/* Password Field (Login & Signup) */}
             {(view === 'login' || view === 'signup') && (
-                <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-700 ml-1">Password</label>
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-700 ml-1 uppercase">Password</label>
                     <input name="password" type="password" required placeholder="••••••••"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
+                        onChange={handleChange} />
+                </div>
+            )}
+
+            {/* ✅ NEW: Confirm Password (Only for Signup) */}
+            {view === 'signup' && (
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-700 ml-1 uppercase">Confirm Password</label>
+                    <input name="confirmPassword" type="password" required placeholder="••••••••"
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-gray-50"
                         onChange={handleChange} />
                 </div>
@@ -97,17 +123,17 @@ export default function LoginPage() {
             {view === 'reset' && (
                 <>
                    <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 mb-2">
-                        ℹ️ Enter the <strong>Master Key</strong> to reset your password.
+                        ℹ️ Enter the <strong>Master Key</strong> to reset.
                    </div>
                    <input name="newPassword" type="password" required placeholder="New Password" 
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-purple-200" onChange={handleChange} />
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none" onChange={handleChange} />
                    <input name="secretKey" type="text" required placeholder="Master Key" 
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-purple-200" onChange={handleChange} />
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 outline-none" onChange={handleChange} />
                 </>
             )}
 
             {/* Main Action Button */}
-            <button disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg transform transition hover:-translate-y-0.5 active:translate-y-0">
+            <button disabled={loading} className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg transform transition hover:-translate-y-0.5 active:translate-y-0">
                 {loading ? 'Processing...' : (
                     view === 'login' ? 'Sign In' : (view === 'signup' ? 'Create Account' : 'Reset Password')
                 )}
