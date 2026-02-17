@@ -23,21 +23,37 @@ export default function Home() {
   }, []);
 
   const fetchProducts = async () => {
-    const res = await fetch('https://inventory-system-vef6.onrender.com/api/products');
-    const data = await res.json();
-    setProducts(data);
+    try {
+        const res = await fetch('https://inventory-system-vef6.onrender.com/api/products');
+        const data = await res.json();
+        setProducts(data);
+    } catch(err) { console.error(err); }
   };
 
+  // ✅ FIXED: Now shows errors if Add fails
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
-    await fetch('https://inventory-system-vef6.onrender.com/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(newProduct),
-    });
-    setNewProduct({ name: '', price: '', quantity: '' });
-    fetchProducts();
+    
+    try {
+        const res = await fetch('https://inventory-system-vef6.onrender.com/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(newProduct),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            alert("✅ Added!");
+            setNewProduct({ name: '', price: '', quantity: '' });
+            fetchProducts();
+        } else {
+            alert("❌ Failed: " + (data.message || "Unknown Error"));
+        }
+    } catch (error) {
+        alert("❌ Network Error: Server might be sleeping or crashed.");
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -54,7 +70,6 @@ export default function Home() {
     }
   };
 
-  // ✅ UPDATED CHECKOUT
   const handleCheckout = async () => {
     if (cart.length === 0) return alert("Cart is empty!");
     if (!customerName || !address) return alert("Please enter Customer Name and Address!");
@@ -62,17 +77,17 @@ export default function Home() {
     const res = await fetch('https://inventory-system-vef6.onrender.com/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cart, customerName, address }), // Send address to backend
+        body: JSON.stringify({ cart, customerName, address }),
     });
 
     const data = await res.json();
 
     if (res.ok) {
         alert("✅ Order Placed Successfully!");
-        setCart([]); // Clear cart
+        setCart([]);
         setCustomerName('');
         setAddress('');
-        fetchProducts(); // Update stock
+        fetchProducts();
     } else {
         alert("❌ Failed: " + data.message);
     }
@@ -127,12 +142,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* RIGHT SIDE: CART & ADDRESS FORM (Only for Staff) */}
+      {/* RIGHT SIDE: CART */}
       {role !== 'admin' && (
           <div className="w-96 bg-white p-6 rounded shadow h-fit border border-gray-200">
             <h2 className="text-xl font-bold mb-4">🛒 Checkout</h2>
-            
-            {/* 1. Cart Items */}
             <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
                 {cart.length === 0 ? <p className="text-gray-400 text-sm">Cart is empty.</p> : cart.map((item, index) => (
                     <div key={index} className="flex justify-between text-sm border-b pb-1">
@@ -141,42 +154,19 @@ export default function Home() {
                     </div>
                 ))}
             </div>
-
             <div className="flex justify-between font-bold text-lg mb-6">
                 <span>Total:</span>
                 <span>${cart.reduce((sum, item) => sum + item.price, 0)}</span>
             </div>
-
-            {/* 2. ✅ ADDRESS INPUTS */}
             <div className="mb-4">
                 <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Customer Name</label>
-                <input 
-                    className="w-full border p-2 rounded text-sm" 
-                    placeholder="John Doe"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                />
+                <input className="w-full border p-2 rounded text-sm" placeholder="John Doe" value={customerName} onChange={(e) => setCustomerName(e.target.value)}/>
             </div>
             <div className="mb-6">
                 <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Delivery Address</label>
-                <textarea 
-                    className="w-full border p-2 rounded text-sm" 
-                    placeholder="123 Main St, City..."
-                    rows={2}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                />
+                <textarea className="w-full border p-2 rounded text-sm" placeholder="123 Main St..." rows={2} value={address} onChange={(e) => setAddress(e.target.value)}/>
             </div>
-
-            <button 
-                onClick={handleCheckout} 
-                disabled={cart.length === 0}
-                className={`w-full py-3 rounded font-bold text-white transition ${
-                    cart.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-lg'
-                }`}
-            >
-                Confirm Order
-            </button>
+            <button onClick={handleCheckout} disabled={cart.length === 0} className={`w-full py-3 rounded font-bold text-white transition ${cart.length === 0 ? 'bg-gray-300' : 'bg-green-600 hover:bg-green-700'}`}>Confirm Order</button>
           </div>
       )}
     </div>

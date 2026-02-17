@@ -12,12 +12,9 @@ app.use(express.json());
 // ==========================
 // 🗄️ DATABASE MODELS
 // ==========================
-
-// 1. Product Model
 const productSchema = new mongoose.Schema({ name: String, price: Number, quantity: Number });
 const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
 
-// 2. User Model
 const userSchema = new mongoose.Schema({ 
     email: { type: String, required: true, unique: true }, 
     password: { type: String, required: true }, 
@@ -25,11 +22,10 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 3. ✅ NEW: Order Model (To save address & history)
 const orderSchema = new mongoose.Schema({
     customerName: String,
     address: String,
-    items: Array, // Stores the list of products bought
+    items: Array, 
     total: Number,
     date: { type: Date, default: Date.now }
 });
@@ -39,7 +35,7 @@ const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 // ⚡ ROUTES
 // ==========================
 
-// Auth & Product Routes (Same as before)
+// AUTH
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -60,63 +56,71 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PRODUCTS
 app.get('/api/products', async (req, res) => {
-    const products = await Product.find();
-    res.json(products);
+    try {
+        const products = await Product.find();
+        res.json(products);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ✅ FIXED: ADD PRODUCT (Restored Error Handling)
 app.post('/api/products', async (req, res) => {
-    const { name, price, quantity, stock } = req.body;
-    const finalQty = Number(quantity) || Number(stock) || 0;
-    const newProduct = new Product({ name, price: Number(price), quantity: finalQty });
-    await newProduct.save();
-    res.status(201).json(newProduct);
+    try {
+        const { name, price, quantity, stock } = req.body;
+        // Safety: Default to 0 if missing
+        const finalQty = Number(quantity) || Number(stock) || 0;
+        
+        if (!name || !price) {
+            return res.status(400).json({ message: "Name and Price are required" });
+        }
+
+        const newProduct = new Product({ 
+            name, 
+            price: Number(price), 
+            quantity: finalQty 
+        });
+        
+        await newProduct.save();
+        res.status(201).json(newProduct);
+    } catch (err) {
+        console.error("Add Error:", err);
+        res.status(500).json({ message: "Server Error", error: err.message });
+    }
 });
 
 app.delete('/api/products/:id', async (req, res) => {
-    await Product.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Deleted' });
+    try {
+        await Product.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Deleted' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ UPDATED: ORDER ROUTE (Now saves Address!)
+// ORDERS
 app.post('/api/orders', async (req, res) => {
     const { cart, customerName, address } = req.body;
-
     if (!customerName || !address || cart.length === 0) {
-        return res.status(400).json({ message: "Name, Address and Cart are required" });
+        return res.status(400).json({ message: "Details missing" });
     }
 
     try {
         let total = 0;
-        // 1. Deduct Stock
         for (const item of cart) {
             const product = await Product.findById(item._id);
             if (product) {
-                if (product.quantity < 1) {
-                    return res.status(400).json({ message: `Out of stock: ${product.name}` });
-                }
+                if (product.quantity < 1) return res.status(400).json({ message: `Out of stock: ${product.name}` });
                 product.quantity -= 1;
                 total += product.price;
                 await product.save();
             }
         }
-
-        // 2. Save Order to Database
-        const newOrder = new Order({
-            customerName,
-            address,
-            items: cart,
-            total
-        });
+        const newOrder = new Order({ customerName, address, items: cart, total });
         await newOrder.save();
-
-        res.json({ message: "Order placed successfully!", orderId: newOrder._id });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        res.json({ message: "Order placed!", orderId: newOrder._id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/', (req, res) => res.send('✅ Server Running with Address Support!'));
+app.get('/', (req, res) => res.send('✅ Server Running (Fixed Safety Checks)!'));
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
