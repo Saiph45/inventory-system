@@ -67,7 +67,7 @@ export default function LoginPage() {
         {/* HEADER */}
         <div className="text-center mb-8">
             <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text text-4xl font-extrabold mb-2">
-                {view === 'login' && '📦 Welcome Back'}
+                {view === 'login' && '📦 Welcome'}
                 {view === 'signup' && '🚀 Join Us'}
                 {view === 'reset' && '🔐 Recovery'}
             </div>
