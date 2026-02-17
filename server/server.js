@@ -7,7 +7,9 @@ require('dotenv').config();
 
 const app = express();
 
+// ==========================
 // 1. MIDDLEWARE
+// ==========================
 app.use(cors({
     origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -16,17 +18,17 @@ app.use(cors({
 
 app.use(express.json());
 
-// Logging for debugging
+// Request Logging (Helps debugging)
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url}`);
     next();
 });
 
 // ==========================
-// 🗄️ DATABASE MODELS
+// 2. DATABASE MODELS
 // ==========================
 
-// User Model
+// 👤 User Model
 const userSchema = new mongoose.Schema({ 
     email: { type: String, required: true, unique: true }, 
     password: { type: String, required: true }, 
@@ -34,16 +36,16 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// Product Model
+// 📦 Product Model
 const productSchema = new mongoose.Schema({ 
     name: String, 
     price: Number, 
     quantity: Number,
-    sku: { type: String, unique: true } // Unique ID for every product
+    sku: { type: String, unique: true } 
 });
 const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
 
-// Order Model
+// 🛒 Order Model
 const orderSchema = new mongoose.Schema({
     customerName: String,
     address: String,
@@ -54,9 +56,10 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
 // ==========================
-// 🔐 AUTH ROUTES
+// 3. AUTH ROUTES
 // ==========================
 
+// Register
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -67,6 +70,7 @@ app.post('/api/auth/register', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Login
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -83,10 +87,47 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 🔐 Forgot Password (Master Key Reset)
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, newPassword, secretKey } = req.body;
+        const MASTER_KEY = "mySuperSecretKey2026"; // 👈 You can change this
+
+        if (secretKey !== MASTER_KEY) return res.status(403).json({ error: "Invalid Secret Key!" });
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        res.json({ message: "Password Reset Successfully!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 🔑 Change Password (Logged In User)
+app.post('/api/auth/change-password', async (req, res) => {
+    try {
+        const { email, oldPassword, newPassword } = req.body;
+        
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) return res.status(400).json({ error: "Incorrect Old Password!" });
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+
+        res.json({ message: "Password updated successfully!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ==========================
-// 📦 PRODUCT ROUTES (Smart Restock)
+// 4. PRODUCT ROUTES
 // ==========================
 
+// Get All
 app.get('/api/products', async (req, res) => {
     try {
         const products = await Product.find();
@@ -94,7 +135,7 @@ app.get('/api/products', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ✅ SMART ADD / RESTOCK LOGIC
+// ✅ Smart Add / Restock
 app.post('/api/products', async (req, res) => {
     try {
         const { name, price, quantity, stock } = req.body;
@@ -102,22 +143,17 @@ app.post('/api/products', async (req, res) => {
         
         if (!name) return res.status(400).json({ message: "Name is required" });
 
-        // 1. Check if product already exists (Case Insensitive)
-        // This finds "redmi" even if you typed "Redmi"
+        // Check if exists (Case Insensitive)
         let product = await Product.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
 
         if (product) {
-            // 🔄 RESTOCK LOGIC: Update existing product
+            // Restock
             product.quantity += finalQty; 
-            
-            // Optional: Update price if a new price is provided, otherwise keep old price
             if (price) product.price = Number(price); 
-            
             await product.save();
-            console.log(`🔄 Restocked ${product.name}: New Qty = ${product.quantity}`);
-            res.json({ message: `Stock Updated! Total: ${product.quantity}`, product });
+            res.json({ message: "Stock Updated!", product });
         } else {
-            // 🆕 CREATE LOGIC: Make new product with SKU
+            // Create New
             const uniqueSku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             product = new Product({ 
                 name, 
@@ -126,15 +162,12 @@ app.post('/api/products', async (req, res) => {
                 sku: uniqueSku
             });
             await product.save();
-            console.log(`✅ Created New Product: ${name}`);
             res.status(201).json(product);
         }
-    } catch (err) {
-        console.error("Add Error:", err);
-        res.status(500).json({ message: "Server Error", error: err.message });
-    }
+    } catch (err) { res.status(500).json({ message: "Server Error", error: err.message }); }
 });
 
+// Delete
 app.delete('/api/products/:id', async (req, res) => {
     try {
         await Product.findByIdAndDelete(req.params.id);
@@ -143,7 +176,7 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 // ==========================
-// 🛒 ORDER ROUTES
+// 5. ORDER ROUTES
 // ==========================
 
 app.post('/api/orders', async (req, res) => {
@@ -167,10 +200,10 @@ app.post('/api/orders', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/', (req, res) => res.send('✅ Server Running (Smart Restock Enabled)'));
+app.get('/', (req, res) => res.send('✅ Server Running (All Features Enabled)'));
 
 // ==========================
-// 🚀 SERVER START
+// 6. START SERVER
 // ==========================
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connected'))
