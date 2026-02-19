@@ -17,7 +17,7 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 // ==========================================
-// 🎨 LANDING PAGE
+// 🎨 LANDING PAGE (Guest View)
 // ==========================================
 function LandingPage() {
   const router = useRouter();
@@ -33,7 +33,10 @@ function LandingPage() {
 
       <header className="max-w-7xl mx-auto px-6 py-24 flex flex-col md:flex-row items-center gap-16 relative z-10">
         <div className="flex-1 space-y-8 animate-fade-in-up">
-            <div className="inline-block px-4 py-1 bg-green-50 text-green-700 rounded-full text-sm font-bold tracking-wide border border-green-100">✨ Phase 2: Complete</div>
+            {/* ✅ UPDATED BADGE TEXT */}
+            <div className="inline-block px-4 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold tracking-wide border border-indigo-100 shadow-sm">
+                🚀 Version 2.0 Live: Analytics & Bulk Upload
+            </div>
             <h1 className="text-6xl md:text-8xl font-black leading-tight text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-indigo-800 to-purple-900">
                 Data Driven <br/> <span className="text-indigo-600">Inventory.</span>
             </h1>
@@ -58,7 +61,7 @@ function LandingPage() {
 }
 
 // ==========================================
-// 📦 DASHBOARD
+// 📦 DASHBOARD (Logged In View)
 // ==========================================
 function Dashboard() {
   const router = useRouter();
@@ -170,10 +173,10 @@ function Dashboard() {
     link.click();
   };
 
-  // Charts
+  // Charts & Calculations
   const totalStock = products.reduce((acc, p) => acc + (p.quantity || 0), 0);
   
-  // ✅ FIX: Force price and quantity to be numbers to avoid NaN
+  // ✅ FIX: Force price and quantity to be numbers (Prevents $NaN error)
   const totalValue = products.reduce((acc, p) => acc + ((Number(p.price) || 0) * (Number(p.quantity) || 0)), 0);
 
   const lowStockItems = products.filter(p => p.quantity < 5).length;
