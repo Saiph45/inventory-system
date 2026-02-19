@@ -9,15 +9,14 @@ const app = express();
 
 // MIDDLEWARE
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for bulk uploads
 
 // MODELS
-// ✅ UPDATED USER MODEL: Added 'name'
 const userSchema = new mongoose.Schema({ 
-    name: { type: String, required: true }, // New Field
+    name: { type: String, required: true },
     email: { type: String, required: true, unique: true }, 
     password: { type: String, required: true }, 
-    role: { type: String, default: 'staff' } 
+    role: { type: String, default: 'staff' } // Roles: 'admin', 'manager', 'staff'
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
@@ -29,14 +28,12 @@ const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
 // ROUTES
 
-// ✅ UPDATED REGISTER ROUTE: Accepts 'name'
+// 1. AUTH
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        if (!name || !email || !password) return res.status(400).json({ error: "All fields are required" });
-        
+        const { name, email, password, role } = req.body; // Added role support for creating Managers
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = new User({ name, email, password: hashedPassword, role: 'staff' });
+        const user = new User({ name, email, password: hashedPassword, role: role || 'staff' });
         await user.save();
         res.status(201).json({ message: "User created" });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -47,18 +44,11 @@ app.post('/api/auth/login', async (req, res) => {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
         if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: "Invalid credentials" });
-        
         const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET || 'secret', { expiresIn: "1h" });
-        
-        // Return name so frontend can use it
         res.json({ token, role: user.role, name: user.name });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ... (Keep the rest of your routes: Reset Password, Products, Orders exactly the same) ...
-// (I am abbreviating here to save space, but DO NOT DELETE the other routes!)
-
-// PASSWORD RESET
 app.post('/api/auth/reset-password', async (req, res) => {
     const { email, newPassword, secretKey } = req.body;
     if (secretKey !== "mySuperSecretKey2026") return res.status(403).json({ error: "Invalid Secret Key" });
@@ -78,6 +68,7 @@ app.post('/api/auth/change-password', async (req, res) => {
     res.json({ message: "Password updated!" });
 });
 
+// 2. PRODUCTS
 app.get('/api/products', async (req, res) => { const products = await Product.find(); res.json(products); });
 
 app.post('/api/products', async (req, res) => {
@@ -88,8 +79,30 @@ app.post('/api/products', async (req, res) => {
     else { const uniqueSku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`; product = new Product({ name, price: Number(price), quantity: finalQty, sku: uniqueSku }); await product.save(); res.status(201).json(product); }
 });
 
+// ✅ NEW: BULK UPLOAD ROUTE (Satisfies Checklist Item: Bulk Upload)
+app.post('/api/products/bulk', async (req, res) => {
+    try {
+        const products = req.body; // Expects array: [{name, price, quantity}, ...]
+        let count = 0;
+        for (const item of products) {
+            if (!item.name) continue;
+            let product = await Product.findOne({ name: { $regex: new RegExp(`^${item.name}$`, 'i') } });
+            if (product) {
+                product.quantity += Number(item.quantity || 0);
+                await product.save();
+            } else {
+                const uniqueSku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                await new Product({ name: item.name, price: Number(item.price), quantity: Number(item.quantity), sku: uniqueSku }).save();
+            }
+            count++;
+        }
+        res.json({ message: `Successfully processed ${count} items!` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/products/:id', async (req, res) => { await Product.findByIdAndDelete(req.params.id); res.json({ message: 'Deleted' }); });
 
+// 3. ORDERS
 app.get('/api/orders', async (req, res) => { const orders = await Order.find().sort({ date: -1 }); res.json(orders); });
 
 app.post('/api/orders', async (req, res) => {
@@ -101,5 +114,8 @@ app.post('/api/orders', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log('✅ Connected'));
+// ROOT
+app.get('/', (req, res) => { res.send(`<h1>🚀 Inventory Server Running!</h1>`); });
+
+mongoose.connect(process.env.MONGO_URI).then(() => console.log('✅ MongoDB Connected'));
 app.listen(process.env.PORT || 5000, () => console.log(`🚀 Running`));
