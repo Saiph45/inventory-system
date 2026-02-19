@@ -172,7 +172,10 @@ function Dashboard() {
 
   // Charts
   const totalStock = products.reduce((acc, p) => acc + (p.quantity || 0), 0);
-  const totalValue = products.reduce((acc, p) => acc + (p.price * p.quantity), 0);
+  
+  // ✅ FIX: Force price and quantity to be numbers to avoid NaN
+  const totalValue = products.reduce((acc, p) => acc + ((Number(p.price) || 0) * (Number(p.quantity) || 0)), 0);
+
   const lowStockItems = products.filter(p => p.quantity < 5).length;
   
   const stockChartData = {
